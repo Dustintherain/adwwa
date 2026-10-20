@@ -1,0 +1,1627 @@
+/* =========================================================================
+ * VALVE SOURCE PROTOCOL // PVE SURVIVAL — WINUI 3 STYLE UI SHELL
+ * =========================================================================
+ * WinUI redesign direction (no glass / no translucent panels / no marble):
+ *   - Solid, opaque, high-contrast surfaces instead of frosted panels.
+ *   - Strong borders around every chrome element (hairline + accent strokes).
+ *   - One primary brand accent: deep "Source blue" plus a red highlight for
+ *     danger/errors and amber for warnings.
+ *   - Clear typography hierarchy: tracked uppercase labels, strong display
+ *     typeface for headings, tabular numbers on data.
+ *   - Buttons always reveal state on hover/active; focus rings are visible.
+ *   - All layouts are grid/flex based: header (top), nav (left column),
+ *     bottom bar (right), modals (centered overlay), inspect HUD (sidebar).
+ */
+
+/* ---------------------------------------------------------------------
+ * 1. Design tokens
+ * --------------------------------------------------------------------- */
+:root {
+  /* Surface / base */
+  --winui-surface: #0d1014;
+  --winui-surface-alt: #12161d;
+  --winui-surface-raised: #1a1f28;
+  --winui-surface-rest: #0b0e13;
+
+  /* Border tokens */
+  --winui-border: #232a35;
+  --winui-border-strong: #343c4c;
+  --winui-border-focus: #38bdf8;
+
+  /* Text tokens */
+  --winui-text: #e8ecf2;
+  --winui-text-secondary: #8a94a6;
+  --winui-text-dim: #5a6478;
+  --winui-text-inverse: #0b0e13;
+
+  /* Accent tokens (WinUI style) */
+  --winui-accent: #38bdf8;
+  --winui-accent-hover: #7dd3fc;
+  --winui-accent-press: #0ea5e9;
+  --winui-accent-glow: rgba(56, 189, 248, 0.28);
+
+  --winui-red: #f87171;
+  --winui-red-hover: #fca5a5;
+  --winui-red-glow: rgba(248, 113, 113, 0.3);
+
+  --winui-amber: #fbbf24;
+  --winui-amber-hover: #fcd34d;
+
+  /* WinUI library styling => deemphasize custom fonts in favor of system UI */
+  --winui-font: "Segoe UI", "Microsoft YaHei UI", "Helvetica Neue", Arial, sans-serif;
+  --winui-font-mono: "Cascadia Code", "SF Mono", "Consolas", monospace;
+
+  /* Typography scale (Elements of Typographic Style) */
+  --winui-label-size: 11px;
+  --winui-label-letter: 2px;
+  --winui-body-size: 13px;
+  --winui-title-size: 22px;
+  --winui-display-size: 44px;
+  --winui-h1-size: 34px;
+  --winui-h2-size: 26px;
+
+  /* Layout */
+  --winui-spacing: 8px;
+  --winui-radius: 2px;
+  --winui-radius-sm: 3px;
+  --winui-radius-md: 6px;
+  --winui-shadow: 0 1px 0 rgba(0, 0, 0, 0.18);
+}
+
+/* ---------------------------------------------------------------------
+ * 2. Base / reset
+ * --------------------------------------------------------------------- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--winui-surface);
+  font-family: var(--winui-font);
+  color: var(--winui-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+body,
+button,
+input,
+select {
+  font-family: var(--winui-font);
+}
+
+canvas {
+  display: block;
+}
+
+/* 3D canvas container remained unchanged (z-index 1, full bleed) */
+#canvas-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+/* ---------------------------------------------------------------------
+ * 3. Post-processing film grain + scanlines (kept as subtle atmosphere)
+ * --------------------------------------------------------------------- */
+.film-grain-overlay,
+.scanlines-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.film-grain-overlay {
+  background-image:
+    radial-gradient(circle at center, transparent 45%, rgba(0, 0, 0, 0.85) 100%),
+    repeating-radial-gradient(circle at 17% 32%, transparent 0, rgba(0, 0, 0, 0.15) 1px, transparent 2px);
+  background-size: 100% 100%, 6px 6px;
+  mix-blend-mode: multiply;
+  opacity: 0.8;
+}
+
+.scanlines-overlay {
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%);
+  background-size: 100% 4px;
+  opacity: 0.5;
+}
+
+/* ---------------------------------------------------------------------
+ * 4. Main UI shell (WinUI layout)
+ * --------------------------------------------------------------------- */
+#ui-root {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  gap: 0;
+}
+
+/* Header: solid dark bar, highly visible, with strong border */
+.header-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--winui-spacing);
+  padding: calc(var(--winui-spacing) * 2) var(--winui-spacing) var(--winui-spacing);
+  background: var(--winui-surface-alt);
+  border-bottom: 2px solid var(--winui-border-strong);
+}
+
+.game-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  max-width: 640px;
+}
+
+.title-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--winui-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--winui-accent);
+  background: var(--winui-surface-rest);
+  padding: 4px 12px;
+  border: 1px solid var(--winui-border-strong);
+  width: fit-content;
+}
+
+.title-badge .hazard-icon {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--winui-red);
+  box-shadow: 0 0 8px var(--winui-red-glow);
+  animation: winui-pulse-beacon 1.8s infinite;
+}
+
+@keyframes winui-pulse-beacon {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; box-shadow: 0 0 14px var(--winui-red-glow); }
+}
+
+.main-title {
+  font-family: var(--winui-font);
+  font-size: var(--winui-display-size);
+  font-weight: 900;
+  letter-spacing: 3px;
+  color: var(--winui-text);
+  line-height: 1;
+}
+
+.main-title span {
+  color: var(--winui-accent);
+}
+
+.sub-title {
+  font-size: 12px;
+  color: var(--winui-text-secondary);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------------
+ * 5. Navigation (WinUI left nav rail)
+ * --------------------------------------------------------------------- */
+.menu-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  max-width: 520px;
+  margin-top: var(--winui-spacing);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border: 1px solid var(--winui-border);
+  border-left: 4px solid transparent;
+  background: var(--winui-surface-raised);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+}
+
+.nav-item:hover {
+  border-left-color: var(--winui-accent);
+  background: var(--winui-surface);
+  transform: translateX(2px);
+}
+
+.nav-item:active {
+  background: var(--winui-surface-rest);
+  transform: translateX(0);
+}
+
+.nav-index {
+  font-family: var(--winui-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--winui-accent);
+  margin-right: 14px;
+  letter-spacing: 1px;
+  min-width: 28px;
+}
+
+.nav-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-title {
+  font-family: var(--winui-font);
+  font-size: var(--winui-title-size);
+  font-weight: 700;
+  color: var(--winui-text);
+  letter-spacing: 0.5px;
+  line-height: 1.1;
+}
+
+.nav-desc {
+  font-size: 11px;
+  color: var(--winui-text-dim);
+  letter-spacing: 0.5px;
+  line-height: 1.4;
+}
+
+/* ---------------------------------------------------------------------
+ * 6. Bottom status bar
+ * --------------------------------------------------------------------- */
+.bottom-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: calc(var(--winui-spacing) * 2) var(--winui-spacing);
+  border-top: 2px solid var(--winui-border-strong);
+  background: var(--winui-surface-alt);
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--winui-text-secondary);
+  letter-spacing: 1px;
+}
+
+.safe-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--winui-accent);
+  box-shadow: 0 0 10px var(--winui-accent-glow);
+  animation: winui-pulse-green 2s infinite;
+}
+
+@keyframes winui-pulse-green {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; box-shadow: 0 0 14px var(--winui-accent-glow); }
+}
+
+.version-tag {
+  font-size: 11px;
+  color: var(--winui-text-dim);
+  letter-spacing: 1px;
+}
+
+/* ---------------------------------------------------------------------
+ * 7. Top actions
+ * --------------------------------------------------------------------- */
+.top-actions {
+  position: absolute;
+  top: calc(var(--winui-spacing) * 2);
+  right: calc(var(--winui-spacing) * 2);
+  z-index: 25;
+  display: flex;
+  gap: 12px;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--winui-surface-raised);
+  border: 1px solid var(--winui-border-strong);
+  color: var(--winui-text);
+  font-family: var(--winui-font);
+  font-size: var(--winui-body-size);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  border-radius: var(--winui-radius-sm);
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.action-btn:hover {
+  background: var(--winui-surface);
+  border-color: var(--winui-border);
+  color: var(--winui-text);
+}
+
+.action-btn:focus-visible {
+  outline: 2px solid var(--winui-border-focus);
+  outline-offset: 2px;
+}
+
+.action-btn .winui-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+/* ---------------------------------------------------------------------
+ * 8. Buttons (WinUI style: solid, clear states, focus ring)
+ * --------------------------------------------------------------------- */
+.btn-primary,
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 20px;
+  border: 1px solid transparent;
+  font-family: var(--winui-font);
+  font-size: var(--winui-body-size);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  border-radius: var(--winui-radius-sm);
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, transform 0.06s ease;
+}
+
+.btn-primary {
+  background: var(--winui-accent);
+  color: var(--winui-text-inverse);
+  border-color: var(--winui-border-focus);
+}
+
+.btn-primary:hover {
+  background: var(--winui-accent-hover);
+  border-color: var(--winui-accent-hover);
+}
+
+.btn-primary:active {
+  background: var(--winui-accent-press);
+  border-color: var(--winui-accent-press);
+  transform: translateY(1px);
+}
+
+.btn-secondary {
+  background: var(--winui-surface-rest);
+  color: var(--winui-text);
+  border-color: var(--winui-border-strong);
+}
+
+.btn-secondary:hover {
+  background: var(--winui-surface);
+  border-color: var(--winui-border);
+}
+
+.btn-secondary:focus-visible {
+  outline: 2px solid var(--winui-border-focus);
+  outline-offset: 2px;
+}
+
+.btn-icon-only {
+  padding: 9px;
+  border-radius: var(--winui-radius-sm);
+}
+
+.flex-row {
+  display: flex;
+  gap: var(--winui-spacing);
+}
+
+.flex-row > * {
+  flex: 1;
+}
+
+/* ---------------------------------------------------------------------
+ * 9. Modals (WinUI dialogs: solid backplate, title in header, strong border)
+ * --------------------------------------------------------------------- */
+.modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 40;
+  background: rgba(5, 7, 10, 0.92);
+  display: none;
+  visibility: hidden;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.modal-overlay.active {
+  display: flex;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.winui-dialog {
+  width: min(680px, 92vw);
+  max-height: 88vh;
+  background: var(--winui-surface);
+  border: 2px solid var(--winui-border-strong);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  animation: winui-dialog-in 0.18s ease;
+}
+
+@keyframes winui-dialog-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: var(--winui-surface-alt);
+  border-bottom: 2px solid var(--winui-border-strong);
+}
+
+.modal-title {
+  font-family: var(--winui-font);
+  font-size: var(--winui-h1-size);
+  font-weight: 800;
+  color: var(--winui-text);
+  letter-spacing: 0.5px;
+}
+
+.modal-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--winui-border);
+  background: var(--winui-surface-rest);
+  color: var(--winui-text-secondary);
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: var(--winui-radius-sm);
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.modal-close-btn:hover {
+  background: var(--winui-surface);
+  color: var(--winui-text);
+  border-color: var(--winui-border);
+}
+
+/* ---------------------------------------------------------------------
+ * 9.1 Section labels, lists, cards (WinUI content style)
+ * --------------------------------------------------------------------- */
+.section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--winui-text-dim);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.winui-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.winui-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--winui-border);
+  background: var(--winui-surface-raised);
+  border-radius: var(--winui-radius-sm);
+}
+
+.winui-list-item .icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--winui-accent);
+}
+
+.winui-list-item .text {
+  display: flex;
+  flex-direction: column;
+}
+
+.winui-list-item .name {
+  font-weight: 700;
+  color: var(--winui-text);
+}
+
+.winui-list-item .meta {
+  font-size: 11px;
+  color: var(--winui-text-dim);
+}
+
+.winui-list-item:hover {
+  background: var(--winui-surface);
+  border-color: var(--winui-border-strong);
+}
+
+/* Campaign cards */
+.campaign-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.campaign-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--winui-border);
+  background: var(--winui-surface-raised);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+}
+
+.campaign-card:hover {
+  border-color: var(--winui-accent);
+  background: var(--winui-surface);
+  transform: translateY(-1px);
+}
+
+.campaign-card:active {
+  transform: translateY(0);
+}
+
+.card-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--winui-accent);
+}
+
+.card-title {
+  font-family: var(--winui-font);
+  font-size: var(--winui-h2-size);
+  font-weight: 700;
+  color: var(--winui-text);
+  letter-spacing: 0.5px;
+}
+
+.card-desc {
+  font-size: 12px;
+  color: var(--winui-text-secondary);
+  line-height: 1.5;
+}
+
+/* Difficulty selector */
+.difficulty-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.diff-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.diff-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border: 1px solid var(--winui-border);
+  background: var(--winui-surface-raised);
+  font-family: var(--winui-font);
+  font-size: var(--winui-title-size);
+  font-weight: 700;
+  color: var(--winui-text);
+  cursor: pointer;
+  border-radius: var(--winui-radius-sm);
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.diff-btn:hover {
+  border-color: var(--winui-accent);
+  background: var(--winui-surface);
+}
+
+.diff-btn .label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--winui-text-dim);
+}
+
+.diff-btn.selected {
+  border-color: var(--winui-accent);
+  background: var(--winui-surface);
+}
+
+/* Team roster */
+.roster-preview {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.roster-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px;
+  border: 1px solid var(--winui-border);
+  background: var(--winui-surface-raised);
+  border-radius: var(--winui-radius-sm);
+  text-align: center;
+}
+
+.roster-card.active-char {
+  border-color: var(--winui-accent);
+  background: var(--winui-surface);
+}
+
+.char-role {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--winui-accent);
+}
+
+.char-name {
+  font-family: var(--winui-font);
+  font-size: var(--winui-body-size);
+  font-weight: 700;
+  color: var(--winui-text);
+}
+
+/* Team roster grid (compact) */
+.roster-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+/* ---------------------------------------------------------------------
+ * 10. Settings form (WinUI content controls)
+ * --------------------------------------------------------------------- */
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--winui-border);
+}
+
+.setting-item:last-of-type {
+  border-bottom: none;
+}
+
+.setting-item label {
+  font-size: var(--winui-body-size);
+  font-weight: 600;
+  color: var(--winui-text);
+}
+
+.setting-item .control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.swing {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.swing .track {
+  width: 140px;
+  height: 4px;
+  background: var(--winui-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.swing .thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--winui-accent);
+  border: 2px solid var(--winui-text-inverse);
+  box-shadow: 0 0 6px var(--winui-accent-glow);
+}
+
+.swing .value {
+  font-family: var(--winui-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--winui-text);
+  min-width: 34px;
+  text-align: right;
+}
+
+.setting-item input[type="range"] {
+  width: 100%;
+  accent-color: var(--winui-accent);
+  cursor: pointer;
+}
+
+.setting-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--winui-accent);
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.setting-item select {
+  padding: 6px 10px;
+  background: var(--winui-surface-rest);
+  border: 1px solid var(--winui-border-strong);
+  color: var(--winui-text);
+  font-family: var(--winui-font);
+  font-size: var(--winui-body-size);
+  border-radius: var(--winui-radius-sm);
+}
+
+.setting-item select:focus-visible {
+  outline: 2px solid var(--winui-border-focus);
+  outline-offset: 1px;
+}
+
+/* ---------------------------------------------------------------------
+ * 11. Inspect HUD (WinUI sidebar)
+ * --------------------------------------------------------------------- */
+#inspect-hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 30;
+  display: none;
+  visibility: hidden;
+  justify-content: flex-start;
+  padding: calc(var(--winui-spacing) * 2) var(--winui-spacing);
+  opacity: 0;
+  pointer-events: none;
+}
+
+#inspect-hud.active {
+  display: flex;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.inspect-sidebar {
+  pointer-events: auto;
+  flex: 0 0 380px;
+  max-width: 360px;
+  background: var(--winui-surface);
+  border: 2px solid var(--winui-border-strong);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.weapon-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--winui-border-strong);
+}
+
+.weapon-source {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--winui-accent);
+}
+
+.weapon-name {
+  font-family: var(--winui-font);
+  font-size: var(--winui-display-size);
+  font-weight: 900;
+  color: var(--winui-text);
+  letter-spacing: 0.5px;
+}
+
+.weapon-caliber {
+  font-size: 11px;
+  color: var(--winui-text-dim);
+  font-weight: 600;
+}
+
+.stat-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stat-row .label {
+  font-size: 12px;
+  color: var(--winui-text-secondary);
+  min-width: 108px;
+}
+
+.stat-row .value {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--winui-text);
+}
+
+.stat-row .value .num {
+  font-family: var(--winui-font-mono);
+  font-size: var(--winui-title-size);
+  color: var(--winui-accent);
+}
+
+.stat-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--winui-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.stat-bar .fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--winui-accent), var(--winui-amber));
+  transition: width 0.35s ease;
+}
+
+.inspect-controls {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.inspect-instructions {
+  position: absolute;
+  bottom: calc(var(--winui-spacing) * 2);
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  display: flex;
+  gap: 16px;
+  background: var(--winui-surface);
+  border: 1px solid var(--winui-border-strong);
+  padding: 10px 18px;
+  font-size: 11px;
+  color: var(--winui-text-secondary);
+  border-radius: var(--winui-radius-sm);
+}
+
+.inspect-instructions span {
+  color: var(--winui-text);
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------------------
+ * 12. Loading banner
+ * --------------------------------------------------------------------- */
+.loading-banner {
+  position: absolute;
+  bottom: calc(var(--winui-spacing) * 2);
+  right: calc(var(--winui-spacing) * 2);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--winui-text-secondary);
+  letter-spacing: 0.5px;
+}
+
+.loading-spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid var(--winui-border);
+  border-top-color: var(--winui-accent);
+  border-radius: 50%;
+  animation: winui-spin 0.8s linear infinite;
+}
+
+@keyframes winui-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------------------------------------------------------------------
+ * 13. In-game FPS HUD (overlay)
+ * --------------------------------------------------------------------- */
+#game-hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 30;
+  pointer-events: none;
+  display: none;
+}
+
+/* Crosshair */
+#hud-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 26px;
+  height: 26px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+#hud-crosshair.ads {
+  width: 12px;
+  height: 12px;
+}
+
+.ch-dot, .ch-bar {
+  position: absolute;
+  background: var(--winui-text);
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.9);
+}
+
+.ch-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+}
+
+.ch-bar {
+  background: var(--winui-text);
+}
+
+.ch-top, .ch-bottom {
+  left: 50%;
+  width: 2px;
+  height: 7px;
+  transform: translateX(-50%);
+}
+
+.ch-left, .ch-right {
+  top: 50%;
+  height: 2px;
+  width: 7px;
+  transform: translateY(-50%);
+}
+
+/* Hitmarker */
+#hud-hitmarker {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.08s ease;
+}
+
+#hud-hitmarker.active {
+  opacity: 1;
+}
+
+.hm-line {
+  position: absolute;
+  width: 7px;
+  height: 2px;
+  background: var(--winui-text);
+}
+
+.hm-tl { top: 2px; left: 2px; transform: rotate(45deg); }
+.hm-tr { top: 2px; right: 2px; transform: rotate(-45deg); }
+.hm-bl { bottom: 2px; left: 2px; transform: rotate(-45deg); }
+.hm-br { bottom: 2px; right: 2px; transform: rotate(45deg); }
+
+#hud-hitmarker.headshot .hm-line {
+  background: var(--winui-red);
+  height: 3px;
+  box-shadow: 0 0 6px var(--winui-red-glow);
+}
+
+/* Damage flash */
+#hud-damage-flash {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background: radial-gradient(circle, transparent 40%, var(--winui-red-glow) 100%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+#hud-damage-flash.flash {
+  opacity: 1;
+}
+
+/* Low health vignette */
+#hud-low-health-vignette {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background: radial-gradient(circle, transparent 50%, rgba(248, 113, 113, 0.65) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* Top bar */
+#hud-top-bar {
+  position: absolute;
+  top: calc(var(--winui-spacing) * 2);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+#hud-objective {
+  background: var(--winui-surface);
+  border: 1px solid var(--winui-border);
+  border-left: 3px solid var(--winui-accent);
+  padding: 8px 18px;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: var(--winui-text);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+#hud-horde-banner {
+  background: var(--winui-red);
+  color: var(--winui-text-inverse);
+  font-family: var(--winui-font);
+  font-size: var(--winui-h2-size);
+  font-weight: 900;
+  letter-spacing: 2px;
+  padding: 8px 24px;
+  border-left: 4px solid var(--winui-text-inverse);
+  border-right: 4px solid var(--winui-text-inverse);
+  box-shadow: 0 0 25px var(--winui-red-glow);
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#hud-horde-banner.show {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Center prompts */
+#hud-interact-prompt {
+  position: absolute;
+  top: 58%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--winui-surface);
+  border: 1px solid var(--winui-border-strong);
+  padding: 8px 18px;
+  font-size: 12px;
+  color: var(--winui-text);
+  letter-spacing: 1px;
+  display: none;
+  box-shadow: 0 0 12px var(--winui-accent-glow);
+}
+
+#hud-heal-progress {
+  position: absolute;
+  top: 64%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.heal-label {
+  font-size: 12px;
+  color: var(--winui-accent);
+  letter-spacing: 1px;
+}
+
+.heal-bar-bg {
+  width: 200px;
+  height: 8px;
+  background: var(--winui-border);
+  border: 1px solid var(--winui-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+#heal-bar-fill {
+  width: 0%;
+  height: 100%;
+  background: var(--winui-accent);
+  transition: width 0.1s linear;
+}
+
+/* Bottom bar */
+#hud-bottom-bar {
+  position: absolute;
+  bottom: calc(var(--winui-spacing) * 2);
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 var(--winui-spacing);
+  pointer-events: none;
+}
+
+.survivor-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--winui-surface);
+  border: 1px solid var(--winui-border);
+  padding: 10px 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
+}
+
+.avatar-box {
+  width: 44px;
+  height: 44px;
+  background: var(--winui-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--winui-font);
+  font-size: var(--winui-h2-size);
+  color: var(--winui-text-inverse);
+  border: 2px solid var(--winui-border);
+  border-radius: 4px;
+}
+
+.avatar-box-koharu {
+  background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%) !important;
+  border-color: #fda4af !important;
+  box-shadow: 0 0 14px rgba(244, 63, 94, 0.45);
+}
+
+.avatar-koharu {
+  font-family: var(--winui-font);
+  font-size: var(--winui-h2-size);
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: var(--winui-text-inverse);
+}
+
+.health-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 150px;
+}
+
+.survivor-name {
+  font-size: 11px;
+  color: var(--winui-text-secondary);
+  letter-spacing: 0.5px;
+}
+
+.hp-bar-bg {
+  width: 100%;
+  height: 10px;
+  background: var(--winui-border);
+  border: 1px solid var(--winui-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+#hud-hp-fill {
+  height: 100%;
+  background: var(--winui-accent);
+  transition: width 0.15s ease, background 0.3s ease;
+}
+
+.hp-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--winui-text);
+  letter-spacing: 0.5px;
+}
+
+.item-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: var(--winui-surface-rest);
+  border: 1px solid var(--winui-border);
+  padding: 6px 10px;
+  border-radius: var(--winui-radius-sm);
+}
+
+.item-tag {
+  font-size: 9px;
+  color: var(--winui-text-dim);
+  letter-spacing: 1px;
+}
+
+.item-icon {
+  font-size: 18px;
+  color: var(--winui-accent);
+}
+
+.item-num {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--winui-text-secondary);
+}
+
+.weapon-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  background: var(--winui-surface);
+  border: 1px solid var(--winui-border);
+  border-right: 4px solid var(--winui-accent);
+  padding: 10px 18px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
+}
+
+.weapon-label {
+  font-size: 11px;
+  color: var(--winui-accent);
+  letter-spacing: 1px;
+}
+
+.ammo-counter {
+  font-family: var(--winui-font-mono);
+  font-size: var(--winui-display-size);
+  line-height: 0.85;
+  color: var(--winui-text);
+}
+
+.ammo-counter small {
+  font-size: 22px;
+  color: var(--winui-text-dim);
+}
+
+.controls-hint {
+  display: flex;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--winui-text-dim);
+  letter-spacing: 0.5px;
+  flex-wrap: wrap;
+}
+
+/* ---------------------------------------------------------------------
+ * 14. In-game pause / end game modals (WinUI dialogs)
+ * --------------------------------------------------------------------- */
+.game-modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 50;
+  background: rgba(5, 7, 10, 0.88);
+  display: none;
+  visibility: hidden;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.game-modal-overlay.active {
+  display: flex;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.valve-dialog {
+  width: min(480px, 92vw);
+  background: var(--winui-surface);
+  border: 2px solid var(--winui-border-strong);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  animation: winui-dialog-in 0.18s ease;
+}
+
+.dialog-header {
+  padding: 16px 20px;
+  background: var(--winui-surface-alt);
+  border-bottom: 2px solid var(--winui-border-strong);
+  font-family: var(--winui-font);
+  font-size: var(--winui-h1-size);
+  font-weight: 800;
+  color: var(--winui-text);
+  letter-spacing: 0.5px;
+}
+
+.dialog-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dialog-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: 1px solid var(--winui-border-strong);
+  background: var(--winui-surface-rest);
+  color: var(--winui-text);
+  font-family: var(--winui-font);
+  font-size: var(--winui-body-size);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  border-radius: var(--winui-radius-sm);
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.dialog-btn:hover {
+  background: var(--winui-surface);
+  border-color: var(--winui-border);
+}
+
+.dialog-btn:focus-visible {
+  outline: 2px solid var(--winui-border-focus);
+  outline-offset: 2px;
+}
+
+.dialog-btn.dialog-danger:hover {
+  border-color: var(--winui-red);
+  background: var(--winui-surface);
+}
+
+.end-stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--winui-border);
+  font-size: 13px;
+  color: var(--winui-text-secondary);
+}
+
+.end-stat-row:last-of-type {
+  border-bottom: none;
+}
+
+.end-stat-row .label {
+  color: var(--winui-text-dim);
+}
+
+.end-stat-row .value {
+  font-weight: 700;
+  color: var(--winui-text);
+}
+
+/* ---------------------------------------------------------------------
+ * 15. Scope overlay (in-game)
+ * --------------------------------------------------------------------- */
+#hud-scope-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 28;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.14s ease-out;
+}
+
+#hud-scope-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.scope-aperture {
+  position: relative;
+  width: 74vh;
+  height: 74vh;
+  max-width: 740px;
+  max-height: 740px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 100vmax #000, 0 0 35px 8px rgba(56, 189, 248, 0.22) inset;
+  border: 4px solid var(--winui-border-strong);
+  overflow: hidden;
+  background: radial-gradient(circle at center, rgba(14, 25, 40, 0.05) 0%, rgba(0, 15, 30, 0.35) 75%, rgba(0, 5, 15, 0.85) 100%);
+}
+
+.scope-crosshair-v, .scope-crosshair-h {
+  position: absolute;
+  background: var(--winui-text);
+  box-shadow: 0 0 2px #000;
+}
+
+.scope-crosshair-v {
+  top: 0;
+  left: 50%;
+  width: 1.5px;
+  height: 100%;
+  transform: translateX(-50%);
+}
+
+.scope-crosshair-h {
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 1.5px;
+  transform: translateY(-50%);
+}
+
+.scope-center-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: var(--winui-red);
+  box-shadow: 0 0 8px var(--winui-red), 0 0 14px var(--winui-red);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.scope-mil-dot {
+  position: absolute;
+  left: 50%;
+  width: 12px;
+  height: 1.5px;
+  background: var(--winui-text);
+  transform: translateX(-50%);
+  box-shadow: 0 0 2px #000;
+}
+
+.dot-1 { top: 60%; }
+.dot-2 { top: 70%; }
+.dot-3 { top: 80%; }
+
+.scope-range-tag {
+  position: absolute;
+  left: 53%;
+  font-size: 11px;
+  color: var(--winui-accent);
+  font-family: var(--winui-font-mono);
+  letter-spacing: 1px;
+  text-shadow: 0 0 4px #000;
+}
+
+.tag-1 { top: calc(60% - 7px); }
+.tag-2 { top: calc(70% - 7px); }
+.tag-3 { top: calc(80% - 7px); }
+
+.scope-info-left, .scope-info-right {
+  font-size: 11px;
+  font-family: var(--winui-font-mono);
+  letter-spacing: 1px;
+  text-shadow: 0 0 6px rgba(56, 189, 248, 0.6), 0 0 2px #000;
+}
+
+.scope-info-left {
+  bottom: 16%;
+  left: 14%;
+  color: var(--winui-accent);
+}
+
+.scope-info-right {
+  bottom: 16%;
+  right: 14%;
+  color: var(--winui-accent);
+}
+
+/* ---------------------------------------------------------------------
+ * 16. Damage numbers (floating)
+ * --------------------------------------------------------------------- */
+#damage-numbers-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 35;
+  overflow: hidden;
+}
+
+.dmg-number {
+  position: absolute;
+  font-family: var(--winui-font);
+  font-weight: 900;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  line-height: 1;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.8);
+}
+
+.dmg-normal {
+  font-size: 34px;
+  color: var(--winui-amber);
+}
+
+.dmg-crit {
+  font-size: 46px;
+  color: var(--winui-red);
+  text-shadow: 0 0 14px var(--winui-red-glow), 0 2px 4px #000;
+  letter-spacing: 1px;
+}
+
+/* ========================================================================
+   END
+ ======================================================================== */

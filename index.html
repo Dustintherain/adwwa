@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="./src/renderer/style.css">
+  <script>
+    window.addEventListener('error', (e) => {
+      console.error('[Window Error]:', e.message, e.filename, e.lineno);
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      console.error('[Unhandled Rejection]:', e.reason);
+    });
+  </script>
+</head>
+<body>
+  <!-- 3D Three.js Canvas Container -->
+  <div id="canvas-container"></div>
+
+  <!-- Cinematic Postprocessing Overlays -->
+  <div class="film-grain-overlay"></div>
+  <div class="scanlines-overlay"></div>
+
+  <!-- Main UI Layer -->
+  <div id="ui-root">
+    <!-- Header Section -->
+    <div class="header-section">
+      <div class="game-logo">
+        <div class="title-badge">
+          <div class="hazard-icon"></div>
+          <span>VALVE SOURCE PROTOCOL // PVE SURVIVAL</span>
+        </div>
+        <h1 class="main-title">LEFT <span>4</span> SURVIVOR</h1>
+        <p class="sub-title">SHIROKO TACTICAL ARSENAL // OUTBREAK QUARANTINE</p>
+      </div>
+
+      <!-- Navigation Menu -->
+      <nav class="menu-nav">
+        <div class="nav-item" id="btn-campaign">
+          <div class="nav-index">01</div>
+          <div class="nav-content">
+            <div class="nav-title">CAMPAIGN // 战役模式</div>
+            <div class="nav-desc">4人幸存者小队合作突破尸潮突围</div>
+          </div>
+        </div>
+
+        <div class="nav-item" id="btn-survival">
+          <div class="nav-index">02</div>
+          <div class="nav-content">
+            <div class="nav-title">SURVIVAL // 生存挑战</div>
+            <div class="nav-desc">坚守据点抵御无尽感染者集群冲击</div>
+          </div>
+        </div>
+
+        <div class="nav-item" id="btn-training" style="border-left: 4px solid var(--winui-accent);">
+          <div class="nav-index">03</div>
+          <div class="nav-content">
+            <div class="nav-title" style="color: var(--winui-accent);">TRAINING // 战术实弹靶场</div>
+            <div class="nav-desc">零感染者 · 10M~75M阶梯钢靶 · CQB室内清房与控枪测试</div>
+          </div>
+        </div>
+
+        <div class="nav-item" id="btn-armory">
+          <div class="nav-index">04</div>
+          <div class="nav-content">
+            <div class="nav-title">ARMORY & INSPECT // 武器库检视</div>
+            <div class="nav-desc">3D全息交互检视砂狼白子突击步枪</div>
+          </div>
+        </div>
+
+        <div class="nav-item" id="btn-options">
+          <div class="nav-index">05</div>
+          <div class="nav-content">
+            <div class="nav-title">OPTIONS // 游戏设置</div>
+            <div class="nav-desc">画面渲染、音效平衡与键位绑定</div>
+          </div>
+        </div>
+
+        <div class="nav-item" id="btn-quit">
+          <div class="nav-index">06</div>
+          <div class="nav-content">
+            <div class="nav-title">QUIT // 退出游戏</div>
+            <div class="nav-desc">安全脱离感染区并关闭客户端</div>
+          </div>
+        </div>
+      </nav>
+    </div>
+
+    <!-- Bottom Status Bar -->
+    <footer class="bottom-bar">
+      <div class="status-indicator">
+        <div class="safe-dot"></div>
+        <span>SAFEZONE SECURED // SOURCE ENGINE SHADER PIPELINE // 60 FPS</span>
+      </div>
+      <div class="version-tag">
+        POWERED BY ELECTRON + THREE.JS // WINUI 3 SHELL V1.0.0
+      </div>
+    </footer>
+  </div>
+
+  <!-- Top Actions -->
+  <div class="top-actions">
+    <button class="action-btn" id="btn-fullscreen">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+      全屏 [F11]
+    </button>
+  </div>
+
+  <!-- Loading Model Banner -->
+  <div class="loading-banner" id="loading-banner">
+    <div class="loading-spinner"></div>
+    <span>正在加载武器网格资源: <strong id="loading-progress">0%</strong></span>
+  </div>
+
+  <!-- Weapon Inspect Mode Overlay HUD -->
+  <div id="inspect-hud">
+    <div class="inspect-sidebar">
+      <div class="weapon-header">
+        <div class="weapon-source">BLUE ARCHIVE ARSENAL // ABYDOS</div>
+        <h2 class="weapon-name">WHITE FANG 465</h2>
+        <div class="weapon-caliber">CALIBER: 5.56x45MM NATO // ASSAULT RIFLE</div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-row">
+          <div class="label">伤害 (DAMAGE)</div>
+          <div class="value"><span class="num">48</span> / 100</div>
+        </div>
+        <div class="stat-row">
+          <div class="label">射速 (FIRE RATE)</div>
+          <div class="value"><span class="num">720</span> RPM</div>
+        </div>
+        <div class="stat-row">
+          <div class="label">精准度 (ACCURACY)</div>
+          <div class="value"><span class="num">88</span>%</div>
+        </div>
+        <div class="stat-row">
+          <div class="label">有效射程 (RANGE)</div>
+          <div class="value"><span class="num">350</span> M</div>
+        </div>
+        <div class="stat-row">
+          <div class="label">弹匣容量 (CAPACITY)</div>
+          <div class="value"><span class="num">30</span> 发</div>
+        </div>
+      </div>
+
+      <div class="inspect-controls">
+        <button class="action-btn" id="btn-toggle-flashlight">战术手电: 开启 [ON]</button>
+        <button class="action-btn" id="btn-cock-weapon">拉栓检视 [BOLT ACTION]</button>
+        <button class="btn-primary" id="btn-exit-inspect" style="margin-top: 10px;">返回主菜单 [ESC]</button>
+      </div>
+    </div>
+
+    <div class="inspect-instructions">
+      <div>按住 <span>[鼠标左键拖拽]</span> 360°旋转检视</div>
+      <div>滑动 <span>[滚轮]</span> 缩放特写镜头</div>
+    </div>
+  </div>
+
+  <!-- Campaign Modal -->
+  <div class="modal-overlay" id="campaign-modal">
+    <div class="winui-dialog">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>CAMPAIGN SELECTION // 战役关卡部署</span>
+        </div>
+        <button class="modal-close-btn" aria-label="关闭">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="section-label">选择战役关卡 (MISSION DEPLOYMENT)</div>
+        <div class="campaign-grid">
+          <div class="campaign-card selected" data-campaign="NO MERCY">
+            <span class="card-tag">CHAPTER 01</span>
+            <h3 class="card-title">NO MERCY // 毫不留情</h3>
+            <p class="card-desc">穿越受感染的默西医院，前往楼顶等待救援直升机。</p>
+          </div>
+          <div class="campaign-card" data-campaign="DEAD AIR">
+            <span class="card-tag">CHAPTER 02</span>
+            <h3 class="card-title">DEAD AIR // 死亡机场</h3>
+            <p class="card-desc">穿越城市火灾区与温室废墟，前往国际机场加油撤离。</p>
+          </div>
+          <div class="campaign-card" data-campaign="BLOOD HARVEST">
+            <span class="card-tag">CHAPTER 03</span>
+            <h3 class="card-title">BLOOD HARVEST // 血腥收获</h3>
+            <p class="card-desc">在恶劣荒野与铁路线突围，抵达农舍坚守救援军用装甲车。</p>
+          </div>
+          <div class="campaign-card" id="card-campaign-training" data-campaign="TRAINING" style="border: 1px solid var(--winui-accent);">
+            <span class="card-tag" style="color: var(--winui-accent); border-color: var(--winui-accent);">PROVING GROUNDS</span>
+            <h3 class="card-title" style="color: var(--winui-accent);">TRAINING // 实弹射击靶场</h3>
+            <p class="card-desc">纯净射击校准场地（零感染者），包含10M~75M反应钢靶与CQB战术突击房。</p>
+          </div>
+        </div>
+
+        <div class="difficulty-selector">
+          <div class="section-label">难度等级 (THREAT LEVEL)</div>
+          <div class="diff-buttons">
+            <div class="diff-btn" data-diff="EASY"><span class="label">EASY</span>简单</div>
+            <div class="diff-btn selected" data-diff="NORMAL"><span class="label">NORMAL</span>普通</div>
+            <div class="diff-btn" data-diff="ADVANCED"><span class="label">ADVANCED</span>进阶</div>
+            <div class="diff-btn" data-diff="EXPERT"><span class="label">EXPERT</span>专家</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-label">幸存者小队编队 (SURVIVOR ROSTER)</div>
+          <div class="roster-preview" style="margin-top: 8px;">
+            <div class="roster-card active-char">
+              <div class="char-role">POINT OPERATOR</div>
+              <div class="char-name">白子 (SHIROKO)</div>
+            </div>
+            <div class="roster-card">
+              <div class="char-role">LEADER BOT</div>
+              <div class="char-name">比尔 (BILL)</div>
+            </div>
+            <div class="roster-card">
+              <div class="char-role">MARKSMAN BOT</div>
+              <div class="char-name">佐伊 (ZOEY)</div>
+            </div>
+            <div class="roster-card">
+              <div class="char-role">HEAVY BOT</div>
+              <div class="char-name">弗朗西斯 (FRANCIS)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <button class="btn-secondary btn-close-modal">取消</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="action-btn" id="btn-direct-training-from-modal" style="color: var(--winui-accent); border-color: var(--winui-accent);">进入实弹靶场 [TRAINING]</button>
+          <button class="btn-primary" id="btn-start-campaign">开始突围 // START CAMPAIGN</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Survival Modal -->
+  <div class="modal-overlay" id="survival-modal">
+    <div class="winui-dialog">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>SURVIVAL MODE // 生存极限挑战</span>
+        </div>
+        <button class="modal-close-btn" aria-label="关闭">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="section-label">防御阵地 (DEFENSE PERIMETER)</div>
+        <div class="campaign-grid">
+          <div class="campaign-card selected">
+            <span class="card-tag">ARENA 01</span>
+            <h3 class="card-title">ROOFTOP // 医院天台</h3>
+            <p class="card-desc">高空孤立平台，多方向攀爬尸潮涌入，考验交叉火力分配。</p>
+          </div>
+          <div class="campaign-card">
+            <span class="card-tag">ARENA 02</span>
+            <h3 class="card-title">RUNWAY // 跑道油罐区</h3>
+            <p class="card-desc">开阔无遮蔽，重型Tank突袭频繁，需要高机动放风筝走位。</p>
+          </div>
+          <div class="campaign-card">
+            <span class="card-tag">ARENA 03</span>
+            <h3 class="card-title">SAFEHOUSE // 封锁安全室</h3>
+            <p class="card-desc">狭窄走廊关门防守，警惕Spitter酸液与Charger冲撞。</p>
+          </div>
+        </div>
+        <p style="font-size: 12px; color: var(--winui-text-secondary); line-height: 1.6;">
+          生存模式下感染者将无休止发起波次冲击，难度与特殊感染者刷新频率将随时间指数级提升。坚持时间越长，战绩评分越高。
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary btn-close-modal">取消</button>
+        <button class="btn-primary" id="btn-start-survival">发起防守 // START SURVIVAL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Training Modal -->
+  <div class="modal-overlay" id="training-modal">
+    <div class="winui-dialog">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>TRAINING COURSE // 训练课目部署</span>
+        </div>
+        <button class="modal-close-btn" aria-label="关闭">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="section-label">选择训练课目 (DRILL SELECTION)</div>
+        <div class="campaign-grid">
+          <div class="campaign-card selected training-card" data-training="TACTICAL STEEL RANGE">
+            <span class="card-tag">DRILL 01</span>
+            <h3 class="card-title">STEEL RANGE // 阶梯钢靶场</h3>
+            <p class="card-desc">10M、25M、45M、65M、75M 多距离受击后仰物理反应钢靶与同心圆靶。</p>
+          </div>
+          <div class="campaign-card training-card" data-training="CQB KILLHOUSE">
+            <span class="card-tag">DRILL 02</span>
+            <h3 class="card-title">KILLHOUSE // 战术突击房</h3>
+            <p class="card-desc">左侧实战室内突入清房训练，练习切角瞄准、转角遇敌与近距离快速射击。</p>
+          </div>
+          <div class="campaign-card training-card" data-training="OBSTACLE COURSE">
+            <span class="card-tag">DRILL 03</span>
+            <h3 class="card-title">OBSTACLES // 战术掩体区</h3>
+            <p class="card-desc">右侧泽西水泥护栏、军用木箱与沙袋掩体，支持移动射击与掩体探头控枪。</p>
+          </div>
+        </div>
+
+        <div class="difficulty-selector">
+          <div class="section-label">训令难度 (THREAT LEVEL)</div>
+          <div class="diff-buttons">
+            <div class="diff-btn" data-diff="EASY"><span class="label">EASY</span>简单</div>
+            <div class="diff-btn selected" data-diff="NORMAL"><span class="label">NORMAL</span>普通</div>
+            <div class="diff-btn" data-diff="ADVANCED"><span class="label">ADVANCED</span>进阶</div>
+            <div class="diff-btn" data-diff="EXPERT"><span class="label">EXPERT</span>专家</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary btn-close-modal">取消</button>
+        <button class="btn-primary" id="btn-start-training">进入实弹靶场 // ENTER PROVING GROUNDS</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Options Modal -->
+  <div class="modal-overlay" id="options-modal">
+    <div class="winui-dialog">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>SETTINGS & AUDIO-VIDEO // 游戏配置</span>
+        </div>
+        <button class="modal-close-btn" aria-label="关闭">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-group">
+          <div class="section-label">音频设置 (AUDIO ENGINE)</div>
+          <div class="setting-item">
+            <label>主音量 (MASTER VOLUME)</label>
+            <div class="control" style="display: flex; align-items: center; gap: 10px;">
+              <input type="range" id="setting-master-vol" min="0" max="1" step="0.05" value="0.8">
+              <span id="val-master-vol" style="font-size: 12px; width: 36px;">80%</span>
+            </div>
+          </div>
+          <div class="setting-item">
+            <label>背景紧张氛围音 (AMBIENT DRONE)</label>
+            <input type="checkbox" checked>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="section-label">画质与滤镜 (GRAPHICS & FILTERS)</div>
+          <div class="setting-item">
+            <label>胶片颗粒特效 (FILM GRAIN)</label>
+            <input type="checkbox" id="setting-film-grain" checked>
+          </div>
+          <div class="setting-item">
+            <label>暗角晕影 (VIGNETTE SHADOW)</label>
+            <input type="checkbox" id="setting-vignette-shadow" checked>
+          </div>
+          <div class="setting-item">
+            <label>抗锯齿级别 (ANTIALIASING)</label>
+            <select style="width: unset; min-width: 160px;">
+              <option>MSAA 4X (HIGH)</option>
+              <option>FXAA FAST</option>
+              <option>DISABLED</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary btn-close-modal">保存配置 // SAVE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Screen -->
+  <div class="modal-overlay" id="loading-screen" style="display: none; z-index: 60; background: #000;">
+    <div style="width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 20px; padding: 28px; border: 1px solid rgba(255,255,255,0.12); background: #0a0c10;">
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div style="font-size: 11px; color: var(--winui-red); letter-spacing: 2px;">MISSION LOADING // 安全区开启中</div>
+        <h2 id="loading-title" style="font-size: 30px; color: #fff; letter-spacing: 2px;">战役突围</h2>
+      </div>
+
+      <div style="height: 160px; background: rgba(20,25,35,0.85); border: 1px dashed rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px;">
+        <div style="font-size: 14px; color: var(--winui-text-secondary); letter-spacing: 1px;">SURVIVOR SQUAD STATUS: ONLINE</div>
+        <div style="font-size: 12px; color: var(--winui-amber);">[白子 / 比尔 / 佐伊 / 弗朗西斯] 准备就绪</div>
+      </div>
+
+      <div>
+        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; color: var(--winui-text-dim);">
+          <span id="loading-status-text">正在建立实体物理世界与尸潮导航网格...</span>
+        </div>
+        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); overflow: hidden; border-radius: 2px;">
+          <div id="loading-bar-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--winui-red), var(--winui-amber)); transition: width 0.15s ease;"></div>
+        </div>
+      </div>
+
+      <div id="loading-tip" style="font-size: 12px; color: var(--winui-text-dim); font-style: italic; border-left: 3px solid var(--winui-red); padding-left: 10px;">
+        提示: 爆头能够造成三倍伤害，并有效节省弹药。
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/renderer/app.js"></script>
+</body>
+</html>
