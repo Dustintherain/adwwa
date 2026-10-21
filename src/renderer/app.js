@@ -15,6 +15,7 @@ function initApp() {
 
   function initMenu() {
     menuScene = new MenuScene(container);
+    window.__menuScene = menuScene;
 
     menuScene.onLoadProgress = (percent) => {
       if (loadingProgress) {

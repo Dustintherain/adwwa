@@ -308,7 +308,8 @@ export class MenuScene {
     this.koharuGroup = new THREE.Group();
     this.scene.add(this.koharuGroup);
 
-    const modelPath = './models/koharu.glb';
+    // 与战场内完全一致：只加载这一个文件，并保持文件自带的网格/材质（不重建、不改材质）
+    const modelPath = './models/blue_archive_-koharu-__cb_default_emotion.glb';
     loader.load(
       modelPath,
       (gltf) => {
@@ -332,29 +333,9 @@ export class MenuScene {
           if (child.isMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
-
-            const oldMat = child.material;
-            const matName = oldMat ? oldMat.name : '';
-            if (child.name === 'Object_6' || matName === 'halo_glow') {
+            // 材质/贴图保持 GLB 原样（不再替换 MeshStandardMaterial）
+            if (child.name === 'Object_6' || (child.material && child.material.name === 'halo_glow')) {
               this.koharuHalo = child;
-              child.material = new THREE.MeshStandardMaterial({
-                color: new THREE.Color(0xff4477),
-                emissive: new THREE.Color(0xff4477),
-                emissiveIntensity: 2.5,
-                roughness: 0.2,
-                metalness: 0.1,
-              });
-            } else if (oldMat) {
-              child.material = new THREE.MeshStandardMaterial({
-                map: oldMat.map || null,
-                color: oldMat.color ? oldMat.color.clone() : new THREE.Color(0xffffff),
-                roughness: 0.55,
-                metalness: 0.1,
-                transparent: oldMat.transparent || false,
-                opacity: oldMat.opacity !== undefined ? oldMat.opacity : 1.0,
-                depthTest: true,
-                depthWrite: true,
-              });
             }
           }
         });
@@ -564,10 +545,7 @@ export class MenuScene {
     // 4. Animate Koharu character in menu
     if (this.koharuGroup) {
       this.koharuGroup.position.y = -0.08 + Math.sin(elapsed * 2.0) * 0.006;
-      if (this.koharuHalo) {
-        this.koharuHalo.position.y = Math.sin(elapsed * 3.0) * 0.015;
-        this.koharuHalo.rotation.y = elapsed * 0.6;
-      }
+      // 完全原样静态渲染：光环也不做位移/旋转动画
     }
 
     this.renderer.render(this.scene, this.camera);

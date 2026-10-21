@@ -3,7 +3,13 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { soundEngine } from '../audio/soundFX.js';
 import { solveTwoBoneIK } from './armIK.js';
 import { buildLimbBones } from './limbRig.js';
-import { buildFirstPersonArm, extractArmData } from './skinnedMeshRig.js';
+import { buildFirstPersonArm, extractArmData, FP_ARM_TRIM } from './skinnedMeshRig.js';
+
+/**
+ * 独立图层：枪 + 第一人称手臂用这一层渲染（与开源 FPS 模版的 viewmodel 相机做法一致）。
+ * 主相机只画 layer 0，viewmodel 相机只画 layer 1。
+ */
+export const VIEWMODEL_LAYER = 1;
 
 export class WeaponController {
   constructor(camera, scene) {
@@ -29,8 +35,10 @@ export class WeaponController {
     this.flashlight = null;
 
     // Weapon positions (Hipfire vs ADS vs Tactical Sprint - pulled back for clean view)
-    this.hipPos = new THREE.Vector3(0.11, -0.12, -0.32);
-    this.hipRot = new THREE.Euler(0.04, -0.05, 0.02);
+    // y 抬高并把枪略向左收：旧值 (0.11,-0.12,-0.32) 把持枪手的右掌压在画面底边以下（腕部落到 97% 高度），
+    // 屏幕上只剩半个拳头。抬高 4cm、左移 2.5cm 后两只手都完整落在画面内。
+    this.hipPos = new THREE.Vector3(0.085, -0.080, -0.32);
+    this.hipRot = new THREE.Euler(0.06, -0.07, 0); // roll 清零：第一人称枪由相机持有，不跟随角色 Spine2 倾斜；后坐/冲刺仍可动态倾转。
 
     this.adsPos = new THREE.Vector3(0.0, -0.095, -0.28);
     this.adsRot = new THREE.Euler(0.0, 0.0, 0.0);
@@ -132,20 +140,16 @@ export class WeaponController {
     // Viewmodel Character Arms Rig (Extracted arms holding the rifle)
     this.viewmodelArms = null;
     this.vmArmBones = null;
-    this.targetHandR = new THREE.Vector3(0.015, -0.055, 0.055);
-    this.targetHandL = new THREE.Vector3(-0.038, -0.040, -0.210);
-    this.poleR = new THREE.Vector3(0.6, -0.85, -0.1);
-    this.poleL = new THREE.Vector3(-0.75, -0.85, -0.1);
+    this.targetHandR = new THREE.Vector3(0.052, -0.078, 0.020);
+    this.targetHandL = new THREE.Vector3(0.000, -0.070, -0.180);
+    this.poleR = new THREE.Vector3(0.72, -0.68, -0.05);
+    this.poleL = new THREE.Vector3(-0.72, -0.68, -0.05);
 
     this.loadWeaponModel();
     this.initEvents();
 
-    // Fallback: If arms are not passed by characterModel within 1.2s, extract directly
-    setTimeout(() => {
-      if (!this.viewmodelArms) {
-        this.loadFallbackArms();
-      }
-    }, 1200);
+    // 单一角色模型：枪由 CharacterModel 的双手 IK 握持，本控制器不再另建第一人称手臂，
+    // 也不再加载第二份 GLB。这里只保留射击 / 弹道 / 开火状态机。
   }
 
   disassembleWeapon(mesh) {
@@ -401,13 +405,18 @@ export class WeaponController {
     this.weaponAnchor.position.copy(this.hipPos);
     this.weaponAnchor.rotation.copy(this.hipRot);
 
-    // Dedicated viewmodel lights: soft diffuse lighting without harsh specular glare
+    // Dedicated viewmodel lights: soft diffuse lighting without harsh specular glare.
+    // 挂在场景而不是 viewmodelRoot 上：第一/第三人称切换会隐藏整个 viewmodelRoot，
+    // 若灯跟着一起消失，按 T 切换视角时整张地图的亮度会突然变化。灯光常亮后两个视角一致。
+    // 同时开启 viewmodel 图层，让第二遍 viewmodel 绘制也能照亮枪与手臂。
     const gunKeyLight = new THREE.DirectionalLight(0xffffff, 1.1);
     gunKeyLight.position.set(0.6, 1.2, 0.4);
-    this.viewmodelRoot.add(gunKeyLight);
+    gunKeyLight.layers.enable(VIEWMODEL_LAYER);
+    this.scene.add(gunKeyLight);
 
     const gunAmbient = new THREE.AmbientLight(0xffffff, 1.6);
-    this.viewmodelRoot.add(gunAmbient);
+    gunAmbient.layers.enable(VIEWMODEL_LAYER);
+    this.scene.add(gunAmbient);
 
     // Setup Muzzle Flash
     this.setupMuzzleFlash();
@@ -418,6 +427,21 @@ export class WeaponController {
     if (this.viewmodelArms) {
       this.updateViewmodelArms(0);
     }
+
+    this.applyViewmodelLayer();
+  }
+
+  /**
+   * FPS 模版做法：把 viewmodel（枪、第一人称手臂、枪口火光）放到独立图层，
+   * 由 GameEngine 用一台同位置/同朝向的 viewmodel 相机在**清完深度后**再画一遍。
+   * 这样手臂和枪永远盖在世界之上，不会被墙体、角色身体或近裁剪面吃掉——
+   * 这正是“第一人称手臂不显示”的根因（viewmodel 与场景共用深度缓冲）。
+   */
+  applyViewmodelLayer() {
+    if (!this.viewmodelRoot) return;
+    this.viewmodelRoot.traverse((o) => {
+      if (o.isMesh || o.isSprite) o.layers.set(VIEWMODEL_LAYER);
+    });
   }
 
   attachCharacterArms(armSource, armRig, material) {
@@ -440,7 +464,7 @@ export class WeaponController {
     armMat.side = THREE.DoubleSide;
 
     const armScaleR = 0.84;
-    const armScaleL = 0.88;
+    const armScaleL = 1.18;
 
     // Palm centroids relative to the wrist joint, in model units (anatomically calibrated)
     const palmOffsetR = new THREE.Vector3(0.025, -0.018, 0.010);
@@ -457,9 +481,10 @@ export class WeaponController {
         scale: armScaleR,
         palmOffset: palmOffsetR,
         restPalm: this.targetHandR,
-        shoulderDir: new THREE.Vector3(0.38, -0.52, 0.38),
+        shoulderDir: new THREE.Vector3(0.42, -0.80, 0.42),
         poleDir: this.poleR,
-        handEuler: new THREE.Euler(2.86, 0.16, 2.96),
+        handEuler: new THREE.Euler(-1.833, 0.785, -2.225),
+        shoulderFrac: 0.84,
       });
 
       this.armL = buildFirstPersonArm({
@@ -471,9 +496,14 @@ export class WeaponController {
         scale: armScaleL,
         palmOffset: palmOffsetL,
         restPalm: this.targetHandL,
-        shoulderDir: new THREE.Vector3(-0.48, -0.62, 0.55),
+        // 肩锚点更偏左、更靠前下：托护木的左臂要从画面左下角斜着伸进来，
+        // 旧值 (-0.52,-0.78,0.34) 把左肘放在画面 57% 宽处，屏幕上像右手第二只手。
+        shoulderDir: new THREE.Vector3(-0.92, -0.60, 0.26),
         poleDir: this.poleL,
-        handEuler: new THREE.Euler(1.46, -0.34, 2.36),
+        handEuler: new THREE.Euler(-2.356, 2.356, 0.0),
+        shoulderFrac: 0.84,
+        // 只留手掌时左臂是“悬空拳头”；右侧手那只手腕后保留整段前臂，形成斜向托举。
+        trim: { ...FP_ARM_TRIM, cuffLength: 0.24 },
       });
 
       if (this.armR && this.armR.root) armGroup.add(this.armR.root);
@@ -482,6 +512,7 @@ export class WeaponController {
       this.viewmodelArms = armGroup;
       this.viewmodelRoot.add(this.viewmodelArms);
 
+      this.applyViewmodelLayer();
       this.updateViewmodelArms(0);
       console.log('[WeaponController] Viewmodel SkinnedMesh arms mounted with Bone/Skeleton/SkinnedMesh!');
       return;
@@ -551,9 +582,9 @@ export class WeaponController {
       scale: armScaleR,
       palmOffset: palmOffsetR,
       restPalm: this.targetHandR,
-      shoulderDir: new THREE.Vector3(0.38, -0.52, 0.38),
+      shoulderDir: new THREE.Vector3(0.42, -0.80, 0.42),
       poleDir: this.poleR,
-      handEuler: new THREE.Euler(2.86, 0.16, 2.96),
+      handEuler: new THREE.Euler(-1.833, 0.785, -2.225),
       upper: null,
       fore: armSegmentMeshes.R ? armSegmentMeshes.R.fore : null,
       hand: armSegmentMeshes.R ? armSegmentMeshes.R.hand : null,
@@ -564,9 +595,9 @@ export class WeaponController {
       scale: armScaleL,
       palmOffset: palmOffsetL,
       restPalm: this.targetHandL,
-      shoulderDir: new THREE.Vector3(-0.48, -0.62, 0.55),
+      shoulderDir: new THREE.Vector3(-0.52, -0.78, 0.34),
       poleDir: this.poleL,
-      handEuler: new THREE.Euler(1.46, -0.34, 2.36),
+      handEuler: new THREE.Euler(-2.356, 2.356, 0.0),
       upper: null,
       fore: armSegmentMeshes.L ? armSegmentMeshes.L.fore : null,
       hand: armSegmentMeshes.L ? armSegmentMeshes.L.hand : null,
@@ -575,16 +606,17 @@ export class WeaponController {
     this.viewmodelArms = armGroup;
     this.viewmodelRoot.add(this.viewmodelArms);
 
+    this.applyViewmodelLayer();
     this.updateViewmodelArms(0);
   }
 
   loadFallbackArms() {
+    // 模型方案：角色只以原样静态 GLB 出现在第三人称，第一人称是纯枪械 viewmodel。
+    // 这里永久停用（保留方法名以兼容旧调用），不再从角色身上裁切/重建第一人称手臂。
+    return;
     if (this.viewmodelArms) return;
     const loader = new GLTFLoader();
-    const tryPaths = [
-      './models/koharu.glb',
-      './models/blue_archive_-koharu-__cb_default_emotion.glb',
-    ];
+    const tryPaths = ['./models/blue_archive_-koharu-__cb_default_emotion.glb'];
 
     const tryLoad = (idx) => {
       if (idx >= tryPaths.length || this.viewmodelArms) return;
