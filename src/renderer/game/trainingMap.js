@@ -18,7 +18,8 @@ export class TrainingMapBuilder {
     this.colliders = [];
     this.interactiveObjects = [];
     this.spawnPoints = []; // 训练场严格不刷新怪物，刷怪点恒空
-    this.playerSpawn = new THREE.Vector3(0, 1.65, 5.0);
+    // 与 FPSController.EYE_HEIGHT 一致（单一角色模型的眼高 1.30m）
+    this.playerSpawn = new THREE.Vector3(0, 1.30, 5.0);
     this.exitDoor = null;
     this.lights = [];
     this.targets = []; // 记录全部反应靶以便执行物理回弹和复位

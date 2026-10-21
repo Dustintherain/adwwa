@@ -6,7 +6,8 @@ export class MapBuilder {
     this.colliders = []; // Array of THREE.Box3 for collision
     this.interactiveObjects = []; // Medkits, ammo crates, doors, explosive barrels
     this.spawnPoints = []; // Zombie spawn points
-    this.playerSpawn = new THREE.Vector3(0, 1.65, 3);
+    // 与 FPSController.EYE_HEIGHT 一致（单一角色模型的眼高 1.30m）
+    this.playerSpawn = new THREE.Vector3(0, 1.30, 3);
     this.exitDoor = null;
     this.lights = [];
   }

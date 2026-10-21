@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { MapBuilder } from './mapBuilder.js';
 import { TrainingMapBuilder } from './trainingMap.js';
 import { FPSController } from './fpsController.js';
-import { WeaponController } from './weaponController.js';
+import { WeaponController, VIEWMODEL_LAYER } from './weaponController.js';
 import { ZombieDirector } from './zombieDirector.js';
 import { GameHUD } from './gameHUD.js';
 import { PhysicsWorld } from './physicsWorld.js';
@@ -70,8 +70,14 @@ export class GameEngine {
 
     // 2. Camera (CRITICAL: Added to scene so viewmodel weapon is rendered; near=0.01 prevents arm near-clipping)
     this.camera = new THREE.PerspectiveCamera(75, width / height, 0.01, 150);
-    this.camera.position.set(0, 1.65, 3);
+    // 初始相机高度与 FPSController.EYE_HEIGHT 一致（模型眼高 1.30m）
+    this.camera.position.set(0, 1.30, 3);
     this.scene.add(this.camera);
+
+    // 2.1 Viewmodel camera（开源 FPS 模版的 viewmodel pass）：只渲 layer 1 的枪与手臂，
+    //     在主场景渲染完后清掉深度再画一遍，手臂永远不会被墙体/角色/近裁剪面遮住。
+    this.viewmodelCamera = new THREE.PerspectiveCamera(75, width / height, 0.01, 5);
+    this.viewmodelCamera.layers.set(VIEWMODEL_LAYER);
 
     // 3. Renderer
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
@@ -127,17 +133,21 @@ export class GameEngine {
     this.weapon.player = this.player;
     this.player.weapon = this.weapon;
 
-    // 提取现有角色模型的手臂模型并挂载到第一人称枪械模型上
-    this.character.onArmsExtracted = (armMeshes, armRig, material) => {
-      this.weapon.attachCharacterArms(armMeshes, armRig, material);
+    // 8.1 第一人称手臂：角色加载完成后把从原模型几何提取的双臂交给 viewmodel 挂载
+    //     （只读取模型数据，不改动角色本体）
+    const mountFirstPersonArms = (armData) => {
+      if (this.weapon && armData) {
+        this.weapon.attachCharacterArms(armData, { ok: true }, armData.material);
+      }
     };
-    if (this.character.armSegmentMeshes && this.character.hasArmRig) {
-      this.weapon.attachCharacterArms(this.character.armSegmentMeshes, this.character.armRig, this.character.bodyMaterial);
-    }
+    this.character.onArmsExtracted = mountFirstPersonArms;
+    if (this.character.armSkinnedData) mountFirstPersonArms(this.character.armSkinnedData);
 
-    // 初始第一人称视角：隐藏第三人称全身模型，显示 Viewmodel（手臂与枪械模型）
-    this.character.root.visible = false;
-    this.weapon.viewmodelRoot.visible = true;
+    // 模型方案：角色是完全原样的静态 GLB，只在第三人称渲染（第一人称相机位于头骨内部，
+    // 无法在不改动模型的前提下去掉头部）。第一人称使用独立的 viewmodel：枪 + 从同一 GLB
+    // 读取几何构建的第一人称手臂，由 viewmodel 相机单独一遍绘制（见 animate 里的 viewmodel pass）。
+    this.character.setPerspective(this.player.isThirdPerson);
+    this.weapon.viewmodelRoot.visible = !this.player.isThirdPerson;
 
     // 10. Zombie Director
     this.director = new ZombieDirector(this.scene, this._useTrainingMap ? [] : this.map.spawnPoints);
@@ -167,6 +177,10 @@ export class GameEngine {
       const h = this.container.clientHeight || window.innerHeight;
       this.camera.aspect = w / h;
       this.camera.updateProjectionMatrix();
+      if (this.viewmodelCamera) {
+        this.viewmodelCamera.aspect = w / h;
+        this.viewmodelCamera.updateProjectionMatrix();
+      }
       this.renderer.setSize(w, h);
     };
     window.addEventListener('resize', this.onWindowResize);
@@ -198,27 +212,12 @@ export class GameEngine {
     // 0. Perspective change (First-Person vs Third-Person Over-the-Shoulder)
     this.player.onPerspectiveChange = (isThirdPerson) => {
       if (this.character) {
+        // 原样静态角色：只有第三人称渲染模型 + 右手步枪
         this.character.setPerspective(isThirdPerson);
-        // 第一人称严格限制只看手臂模型与枪械，隐藏第三人称全身；第三人称显示全身
-        this.character.root.visible = isThirdPerson;
       }
       if (this.weapon) {
-        // 第一人称显示 Viewmodel（手臂与枪械），第三人称隐藏 Viewmodel
+        // 第一人称显示枪械 viewmodel；第三人称改由角色手中的那把枪呈现
         this.weapon.viewmodelRoot.visible = !isThirdPerson;
-      }
-    };
-
-    // 0.1 Model Switch (KeyM: Three.js Official Soldier.glb vs Koharu.glb)
-    this.player.onModelSwitch = () => {
-      if (this.character) {
-        const newType = this.character.switchCharacterModel();
-        if (this.hud) {
-          const desc = newType === 'soldier'
-            ? 'Three.js 官方战术士兵 (Soldier.glb / AnimationMixer 骨骼动画)'
-            : '碧蓝档案小春 (Koharu.glb / SkinnedMesh)';
-          this.hud.setInteractPrompt(`[M] 切换角色模型: ${desc}`);
-          setTimeout(() => { if (this.hud) this.hud.setInteractPrompt(null); }, 3000);
-        }
       }
     };
 
@@ -566,6 +565,24 @@ export class GameEngine {
     }
 
     this.renderer.render(this.scene, this.camera);
+
+    // Viewmodel pass：同位置/同朝向的独立相机 + 清深度后重画，手臂与枪永远在最前
+    if (this.weapon && this.weapon.viewmodelRoot.visible) {
+      this.viewmodelCamera.position.copy(this.camera.position);
+      this.viewmodelCamera.quaternion.copy(this.camera.quaternion);
+      if (this.viewmodelCamera.fov !== this.camera.fov) {
+        this.viewmodelCamera.fov = this.camera.fov;
+        this.viewmodelCamera.updateProjectionMatrix();
+      }
+      const prevAutoClear = this.renderer.autoClear;
+      const prevShadowAuto = this.renderer.shadowMap.autoUpdate;
+      this.renderer.autoClear = false;
+      this.renderer.shadowMap.autoUpdate = false; // 阴影已在主 pass 算过，viewmodel pass 不重算
+      this.renderer.clearDepth();
+      this.renderer.render(this.scene, this.viewmodelCamera);
+      this.renderer.shadowMap.autoUpdate = prevShadowAuto;
+      this.renderer.autoClear = prevAutoClear;
+    }
   }
 
   restart() {

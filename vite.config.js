@@ -13,7 +13,10 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
-    port: 5173,
+    host: '0.0.0.0',
+    port: Number(process.env.PORT) || 5173,
     strictPort: true,
+    // Freebuff 预览通过动态子域反向代理访问，需放行非 localhost 的 Host 头
+    allowedHosts: true,
   }
 });

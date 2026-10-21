@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import { soundEngine } from '../audio/soundFX.js';
 
+/**
+ * 眼位高度：角色模型（blue_archive_-koharu，1.48m）的眼睛实际在 ~1.30m。
+ * 第一人称与第三人称共用一个模型后，相机必须落在模型自己的眼睛位置，
+ * 否则从 1.65m 往下看会直接越过她的头顶。（角色侧同名常量必须保持一致。）
+ */
+export const EYE_HEIGHT = 1.30;
+
 export class FPSController {
   constructor(camera, domElement, colliders) {
     this.camera = camera;
@@ -8,7 +15,7 @@ export class FPSController {
     this.colliders = colliders || [];
 
     // Movement state
-    this.position = new THREE.Vector3(0, 1.65, 3);
+    this.position = new THREE.Vector3(0, EYE_HEIGHT, 3);
     this.velocity = new THREE.Vector3();
     this.direction = new THREE.Vector3();
     this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -252,7 +259,7 @@ export class FPSController {
     this.position.y += this.velocity.y * delta;
 
     // Floor collision
-    const floorY = this.keys.crouch ? 1.1 : 1.65;
+    const floorY = this.keys.crouch ? EYE_HEIGHT - 0.55 : EYE_HEIGHT;
     if (this.position.y <= floorY) {
       this.position.y = floorY;
       this.velocity.y = 0;
